@@ -1,38 +1,185 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
+
 import '../theme/app_theme.dart';
 import '../widgets/sensor_card.dart';
 import '../widgets/bottom_nav.dart';
+import '../services/alert_service.dart';
 
-class DashboardScreen extends StatelessWidget {
+class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    const bool fireDetected = false;
-    const bool smokeHigh = false;
-    const double temperature = 29.0;
+  State<DashboardScreen> createState() => _DashboardScreenState();
+}
 
+class _DashboardScreenState extends State<DashboardScreen> {
+  final DatabaseReference _databaseRef =
+      FirebaseDatabase.instance.ref('monitoring/device_1');
+
+  double temperature = 0.0;
+  double humidity = 0.0;
+  int smokeValue = 0;
+
+  bool fireDetected = false;
+  bool buzzerOn = false;
+
+  String status = 'MEMUAT';
+  String lcdLine1 = '-';
+  String lcdLine2 = '-';
+
+  bool isLoading = true;
+  bool isOnline = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _listenFirebaseData();
+  }
+
+  void _listenFirebaseData() {
+    _databaseRef.onValue.listen(
+      (event) async {
+        final data = event.snapshot.value;
+
+        if (data != null && data is Map) {
+          final String newStatus = data['kondisi']?.toString() ?? 'AMAN';
+
+          setState(() {
+            temperature =
+                double.tryParse(data['suhu']?.toString() ?? '0') ?? 0.0;
+
+            humidity =
+                double.tryParse(data['kelembapan']?.toString() ?? '0') ?? 0.0;
+
+            smokeValue = int.tryParse(data['asap']?.toString() ?? '0') ?? 0;
+
+            fireDetected = data['api'] == true;
+            buzzerOn = data['buzzer'] == true;
+
+            status = newStatus;
+
+            lcdLine1 = data['lcdLine1']?.toString() ?? '-';
+            lcdLine2 = data['lcdLine2']?.toString() ?? '-';
+
+            isLoading = false;
+            isOnline = true;
+          });
+
+          await AlertService.handleStatusAlert(
+            context: context,
+            status: newStatus,
+            mounted: mounted,
+          );
+        } else {
+          setState(() {
+            isLoading = false;
+            isOnline = false;
+            status = 'OFFLINE';
+            lcdLine1 = '-';
+            lcdLine2 = 'Tidak ada data';
+          });
+        }
+      },
+      onError: (error) {
+        setState(() {
+          isLoading = false;
+          isOnline = false;
+          status = 'OFFLINE';
+          lcdLine1 = '-';
+          lcdLine2 = 'Gagal membaca data';
+        });
+      },
+    );
+  }
+
+  Color _getStatusColor() {
+    if (status == 'DARURAT') {
+      return AppTheme.primaryRed;
+    } else if (status == 'WASPADA') {
+      return AppTheme.orange;
+    } else if (status == 'AMAN') {
+      return AppTheme.green;
+    } else {
+      return Colors.grey;
+    }
+  }
+
+  IconData _getStatusIcon() {
+    if (status == 'DARURAT') {
+      return Icons.warning_rounded;
+    } else if (status == 'WASPADA') {
+      return Icons.report_problem_rounded;
+    } else if (status == 'AMAN') {
+      return Icons.check_circle_rounded;
+    } else {
+      return Icons.wifi_off_rounded;
+    }
+  }
+
+  String _getStatusDescription() {
+    if (status == 'DARURAT') {
+      return 'Bahaya kebakaran terdeteksi. Segera lakukan pengecekan.';
+    } else if (status == 'WASPADA') {
+      return 'Suhu dan asap melewati batas waspada.';
+    } else if (status == 'AMAN') {
+      return 'Semua sensor dalam kondisi normal.';
+    } else {
+      return 'Perangkat belum terhubung atau belum mengirim data.';
+    }
+  }
+
+  String _getSmokeStatus() {
+    if (smokeValue >= 3500) {
+      return 'Tinggi';
+    } else if (smokeValue >= 2500) {
+      return 'Meningkat';
+    } else {
+      return 'Normal';
+    }
+  }
+
+  Color _getSmokeColor(bool isDark) {
+    if (smokeValue >= 3500) {
+      return AppTheme.primaryRed;
+    } else if (smokeValue >= 2500) {
+      return AppTheme.orange;
+    } else {
+      return isDark ? const Color(0xFFCBD5E1) : Colors.grey;
+    }
+  }
+
+  Color _getTemperatureColor() {
+    if (temperature >= 45) {
+      return AppTheme.primaryRed;
+    } else if (temperature >= 35) {
+      return AppTheme.orange;
+    } else {
+      return AppTheme.green;
+    }
+  }
+
+  String _getFireStatusText() {
+    return fireDetected ? 'Terdeteksi' : 'Tidak Terdeteksi';
+  }
+
+  String _getBuzzerStatusText() {
+    return buzzerOn ? 'Menyala' : 'Mati';
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final String status = fireDetected
-        ? 'DARURAT'
-        : smokeHigh || temperature >= 35
-        ? 'WASPADA'
-        : 'AMAN';
+    final Color statusColor = _getStatusColor();
 
-    final Color statusColor = fireDetected
-        ? AppTheme.primaryRed
-        : smokeHigh || temperature >= 35
-        ? AppTheme.orange
-        : AppTheme.green;
+    final Color textColor =
+        isDark ? const Color(0xFFF9FAFB) : AppTheme.darkText;
 
-    final Color textColor = isDark
-        ? const Color(0xFFF9FAFB)
-        : AppTheme.darkText;
     final Color subTextColor = isDark ? Colors.white70 : AppTheme.greyText;
-    final Color pageBg = isDark
-        ? const Color(0xFF0F172A)
-        : const Color(0xFFF6F7FB);
+
+    final Color pageBg =
+        isDark ? const Color(0xFF0F172A) : const Color(0xFFF6F7FB);
 
     return Scaffold(
       backgroundColor: pageBg,
@@ -96,12 +243,18 @@ class DashboardScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Row(
-                      children: const [
-                        Icon(Icons.wifi_rounded, size: 14, color: Colors.white),
-                        SizedBox(width: 6),
+                      children: [
+                        Icon(
+                          isOnline
+                              ? Icons.wifi_rounded
+                              : Icons.wifi_off_rounded,
+                          size: 14,
+                          color: Colors.white,
+                        ),
+                        const SizedBox(width: 6),
                         Text(
-                          'Online',
-                          style: TextStyle(
+                          isOnline ? 'Online' : 'Offline',
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 12,
                             fontWeight: FontWeight.w700,
@@ -113,6 +266,7 @@ class DashboardScreen extends StatelessWidget {
                 ],
               ),
             ),
+
             const SizedBox(height: 16),
 
             Container(
@@ -138,36 +292,53 @@ class DashboardScreen extends StatelessWidget {
               child: Row(
                 children: [
                   Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Kondisi Saat Ini',
-                          style: TextStyle(color: Colors.white70, fontSize: 14),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          status,
-                          style: const TextStyle(
-                            fontSize: 34,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
+                    child: isLoading
+                        ? const Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Kondisi Saat Ini',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              SizedBox(height: 12),
+                              CircularProgressIndicator(
+                                color: Colors.white,
+                              ),
+                            ],
+                          )
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Kondisi Saat Ini',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                status,
+                                style: const TextStyle(
+                                  fontSize: 34,
+                                  fontWeight: FontWeight.w800,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                _getStatusDescription(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 14,
+                                  height: 1.3,
+                                ),
+                              ),
+                            ],
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          fireDetected
-                              ? 'Bahaya kebakaran terdeteksi'
-                              : smokeHigh || temperature >= 35
-                              ? 'Asap atau suhu mulai meningkat'
-                              : 'Semua sensor dalam kondisi normal',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 14,
-                          ),
-                        ),
-                      ],
-                    ),
                   ),
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 400),
@@ -179,9 +350,7 @@ class DashboardScreen extends StatelessWidget {
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
-                      fireDetected
-                          ? Icons.warning_rounded
-                          : Icons.check_circle_rounded,
+                      _getStatusIcon(),
                       color: Colors.white,
                       size: 32,
                     ),
@@ -189,6 +358,7 @@ class DashboardScreen extends StatelessWidget {
                 ],
               ),
             ),
+
             const SizedBox(height: 18),
 
             Text(
@@ -199,12 +369,13 @@ class DashboardScreen extends StatelessWidget {
                 fontWeight: FontWeight.w800,
               ),
             ),
+
             const SizedBox(height: 12),
 
             SensorCard(
               icon: Icons.local_fire_department_rounded,
               title: 'Status Api',
-              value: fireDetected ? 'Terdeteksi' : 'Tidak Terdeteksi',
+              value: _getFireStatusText(),
               iconColor: AppTheme.primaryRed,
               onTap: fireDetected
                   ? () => Navigator.pushNamed(context, '/alarm')
@@ -214,8 +385,29 @@ class DashboardScreen extends StatelessWidget {
             SensorCard(
               icon: Icons.cloud_rounded,
               title: 'Status Asap',
-              value: smokeHigh ? 'Terdeteksi' : 'Tidak Terdeteksi',
-              iconColor: isDark ? const Color(0xFFCBD5E1) : Colors.grey,
+              value: '${_getSmokeStatus()} ($smokeValue)',
+              iconColor: _getSmokeColor(isDark),
+            ),
+
+            SensorCard(
+              icon: Icons.volume_up_rounded,
+              title: 'Status Buzzer',
+              value: _getBuzzerStatusText(),
+              iconColor: buzzerOn ? AppTheme.primaryRed : Colors.grey,
+            ),
+
+            SensorCard(
+              icon: Icons.display_settings_rounded,
+              title: 'LCD I2C',
+              value: '$lcdLine1 | $lcdLine2',
+              iconColor: Colors.indigo,
+            ),
+
+            SensorCard(
+              icon: Icons.water_drop_rounded,
+              title: 'Kelembapan',
+              value: '${humidity.toStringAsFixed(1)}%',
+              iconColor: Colors.blue,
             ),
 
             Card(
@@ -231,12 +423,12 @@ class DashboardScreen extends StatelessWidget {
                       width: 52,
                       height: 52,
                       decoration: BoxDecoration(
-                        color: AppTheme.green.withOpacity(0.12),
+                        color: _getTemperatureColor().withOpacity(0.12),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
+                      child: Icon(
                         Icons.thermostat_rounded,
-                        color: AppTheme.green,
+                        color: _getTemperatureColor(),
                         size: 28,
                       ),
                     ),
@@ -247,7 +439,10 @@ class DashboardScreen extends StatelessWidget {
                         children: [
                           Text(
                             'Suhu',
-                            style: TextStyle(color: subTextColor, fontSize: 14),
+                            style: TextStyle(
+                              color: subTextColor,
+                              fontSize: 14,
+                            ),
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -262,9 +457,9 @@ class DashboardScreen extends StatelessWidget {
                           ClipRRect(
                             borderRadius: BorderRadius.circular(20),
                             child: LinearProgressIndicator(
-                              value: temperature / 50,
+                              value: (temperature / 50).clamp(0.0, 1.0),
                               minHeight: 9,
-                              color: AppTheme.green,
+                              color: _getTemperatureColor(),
                               backgroundColor: isDark
                                   ? Colors.white.withOpacity(0.08)
                                   : Colors.grey.shade200,
@@ -275,6 +470,17 @@ class DashboardScreen extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            Text(
+              'Catatan: getar dan popup aktif saat status berubah menjadi WASPADA atau DARURAT.',
+              style: TextStyle(
+                color: subTextColor,
+                fontSize: 12,
+                height: 1.4,
               ),
             ),
           ],

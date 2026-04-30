@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_database/firebase_database.dart';
+
 import '../theme/app_theme.dart';
-import '../theme/theme_controller.dart';
 import '../widgets/bottom_nav.dart';
+import '../main.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -11,311 +13,397 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  bool wifi = true;
-  bool notif = true;
-  bool sound = true;
-  bool vibrate = false;
-  bool darkMode = false;
+  final DatabaseReference _settingsRef =
+      FirebaseDatabase.instance.ref('settings/device_1');
 
-  final TextEditingController deviceNameController =
-      TextEditingController(text: 'Sensor Dapur');
-  final TextEditingController tempLimitController =
-      TextEditingController(text: '40');
-  final TextEditingController smokeLimitController =
-      TextEditingController(text: '300');
+  final TextEditingController namaPerangkatController =
+      TextEditingController();
+
+  final TextEditingController batasSuhuWaspadaController =
+      TextEditingController();
+
+  final TextEditingController batasSuhuDaruratController =
+      TextEditingController();
+
+  final TextEditingController batasAsapWaspadaController =
+      TextEditingController();
+
+  final TextEditingController batasAsapDaruratController =
+      TextEditingController();
+
+  bool isLoading = true;
+  bool isSaving = false;
+  bool buzzerAktif = true;
+
+  ThemeMode selectedThemeMode = ThemeMode.system;
 
   @override
   void initState() {
     super.initState();
-    darkMode = ThemeController.isDark;
+    _loadSettings();
   }
 
   @override
   void dispose() {
-    deviceNameController.dispose();
-    tempLimitController.dispose();
-    smokeLimitController.dispose();
+    namaPerangkatController.dispose();
+    batasSuhuWaspadaController.dispose();
+    batasSuhuDaruratController.dispose();
+    batasAsapWaspadaController.dispose();
+    batasAsapDaruratController.dispose();
     super.dispose();
   }
 
-  Widget buildInputCard({
-    required String label,
-    required TextEditingController controller,
-    String? suffixText,
-    TextInputType keyboardType = TextInputType.text,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final inputBg =
-        isDark ? const Color(0xFF243041) : const Color(0xFFF8F9FB);
-    final cardBg =
-        isDark ? const Color(0xFF172131) : Colors.white;
-    final borderColor =
-        isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04);
+  Future<void> _loadSettings() async {
+    final snapshot = await _settingsRef.get();
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.18 : 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(
-              color: isDark ? Colors.white70 : AppTheme.greyText,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 10),
-          TextField(
-            controller: controller,
-            keyboardType: keyboardType,
-            style: TextStyle(
-              color: isDark ? Colors.white : AppTheme.darkText,
-              fontWeight: FontWeight.w600,
-            ),
-            decoration: InputDecoration(
-              hintText: 'Masukkan $label',
-              hintStyle: TextStyle(
-                color: isDark ? Colors.white38 : Colors.grey,
-              ),
-              suffixText: suffixText,
-              suffixStyle: TextStyle(
-                color: isDark ? Colors.white70 : AppTheme.greyText,
-                fontWeight: FontWeight.w700,
-              ),
-              filled: true,
-              fillColor: inputBg,
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 16,
-                vertical: 16,
-              ),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(18),
-                borderSide: BorderSide.none,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    if (snapshot.exists && snapshot.value is Map) {
+      final data = snapshot.value as Map;
+
+      namaPerangkatController.text =
+          data['namaPerangkat']?.toString() ?? 'Ruang 1';
+
+      batasSuhuWaspadaController.text =
+          data['batasSuhuWaspada']?.toString() ?? '35';
+
+      batasSuhuDaruratController.text =
+          data['batasSuhuDarurat']?.toString() ?? '45';
+
+      batasAsapWaspadaController.text =
+          data['batasAsapWaspada']?.toString() ?? '2500';
+
+      batasAsapDaruratController.text =
+          data['batasAsapDarurat']?.toString() ?? '3500';
+
+      buzzerAktif = data['buzzerAktif'] == true;
+    } else {
+      namaPerangkatController.text = 'Ruang 1';
+      batasSuhuWaspadaController.text = '35';
+      batasSuhuDaruratController.text = '45';
+      batasAsapWaspadaController.text = '2500';
+      batasAsapDaruratController.text = '3500';
+      buzzerAktif = true;
+
+      await _saveSettings(showMessage: false);
+    }
+
+    if (mounted) {
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
 
-  Widget buildSwitchCard({
-    required String title,
-    required bool value,
-    required Function(bool) onChanged,
-  }) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final cardBg =
-        isDark ? const Color(0xFF172131) : Colors.white;
-    final borderColor =
-        isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.04);
+  Future<void> _saveSettings({bool showMessage = true}) async {
+    setState(() {
+      isSaving = true;
+    });
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        color: cardBg,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(isDark ? 0.18 : 0.05),
-            blurRadius: 16,
-            offset: const Offset(0, 8),
+    final String namaPerangkat = namaPerangkatController.text.trim();
+
+    final double batasSuhuWaspada =
+        double.tryParse(batasSuhuWaspadaController.text.trim()) ?? 35.0;
+
+    final double batasSuhuDarurat =
+        double.tryParse(batasSuhuDaruratController.text.trim()) ?? 45.0;
+
+    final int batasAsapWaspada =
+        int.tryParse(batasAsapWaspadaController.text.trim()) ?? 2500;
+
+    final int batasAsapDarurat =
+        int.tryParse(batasAsapDaruratController.text.trim()) ?? 3500;
+
+    await _settingsRef.set({
+      'namaPerangkat': namaPerangkat.isEmpty ? 'Ruang 1' : namaPerangkat,
+      'batasSuhuWaspada': batasSuhuWaspada,
+      'batasSuhuDarurat': batasSuhuDarurat,
+      'batasAsapWaspada': batasAsapWaspada,
+      'batasAsapDarurat': batasAsapDarurat,
+      'buzzerAktif': buzzerAktif,
+    });
+
+    if (mounted) {
+      setState(() {
+        isSaving = false;
+      });
+
+      if (showMessage) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Pengaturan berhasil disimpan'),
           ),
-        ],
-      ),
-      child: SwitchListTile(
-        value: value,
-        onChanged: onChanged,
-        activeColor: AppTheme.primaryRed,
-        contentPadding: EdgeInsets.zero,
-        title: Text(
-          title,
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.w700,
-            color: isDark ? Colors.white : AppTheme.darkText,
-          ),
-        ),
-      ),
-    );
+        );
+      }
+    }
   }
 
-  void saveSettings() {
-    final deviceName = deviceNameController.text.trim();
-    final tempLimit = tempLimitController.text.trim();
-    final smokeLimit = smokeLimitController.text.trim();
+  void _changeTheme(ThemeMode mode) {
+    setState(() {
+      selectedThemeMode = mode;
+    });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        behavior: SnackBarBehavior.floating,
-        content: Text(
-          'Tersimpan: $deviceName | Suhu $tempLimit°C | Asap $smokeLimit ppm',
-        ),
-      ),
-    );
+    MyApp.of(context)?.changeTheme(mode);
   }
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final textColor =
-        isDark ? const Color(0xFFF9FAFB) : AppTheme.darkText;
-    final subTextColor =
-        isDark ? Colors.white70 : AppTheme.greyText;
-    final pageBg =
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final Color pageBg =
         isDark ? const Color(0xFF0F172A) : const Color(0xFFF6F7FB);
+
+    final Color textColor =
+        isDark ? const Color(0xFFF9FAFB) : AppTheme.darkText;
+
+    final Color subTextColor = isDark ? Colors.white70 : AppTheme.greyText;
 
     return Scaffold(
       backgroundColor: pageBg,
       bottomNavigationBar: BottomNav(currentIndex: 3),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-          children: [
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: isDark
-                      ? const [Color(0xFF1E293B), Color(0xFF24364E)]
-                      : const [Color(0xFFFF6A5C), Color(0xFFE94B3C)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-                borderRadius: BorderRadius.circular(28),
-                boxShadow: [
-                  BoxShadow(
-                    color: (isDark ? Colors.black : AppTheme.primaryRed)
-                        .withOpacity(0.18),
-                    blurRadius: 24,
-                    offset: const Offset(0, 10),
-                  ),
-                ],
-              ),
-              child: Row(
+        child: isLoading
+            ? const Center(child: CircularProgressIndicator())
+            : ListView(
+                padding: const EdgeInsets.all(16),
                 children: [
-                  const Icon(
-                    Icons.settings_rounded,
-                    color: Colors.white,
-                    size: 30,
+                  Text(
+                    'Pengaturan',
+                    style: TextStyle(
+                      color: textColor,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: const [
-                        Text(
-                          'Pengaturan',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.w800,
-                            color: Colors.white,
-                          ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Atur perangkat, batas sensor, LCD, dan buzzer',
+                    style: TextStyle(
+                      color: subTextColor,
+                      fontSize: 14,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  _SectionCard(
+                    title: 'Perangkat',
+                    children: [
+                      _InputField(
+                        controller: namaPerangkatController,
+                        label: 'Nama Perangkat',
+                        icon: Icons.devices_rounded,
+                        keyboardType: TextInputType.text,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Nama perangkat ini akan tampil pada LCD I2C.',
+                        style: TextStyle(
+                          color: subTextColor,
+                          fontSize: 12,
                         ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Konfigurasi sistem dan notifikasi',
-                          style: TextStyle(
-                            color: Colors.white70,
-                            fontSize: 13,
-                          ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  _SectionCard(
+                    title: 'Batas Suhu',
+                    children: [
+                      _InputField(
+                        controller: batasSuhuWaspadaController,
+                        label: 'Batas Suhu Waspada',
+                        icon: Icons.thermostat_rounded,
+                        keyboardType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 12),
+                      _InputField(
+                        controller: batasSuhuDaruratController,
+                        label: 'Batas Suhu Darurat',
+                        icon: Icons.thermostat_auto_rounded,
+                        keyboardType: TextInputType.number,
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  _SectionCard(
+                    title: 'Batas Asap',
+                    children: [
+                      _InputField(
+                        controller: batasAsapWaspadaController,
+                        label: 'Batas Asap Waspada',
+                        icon: Icons.cloud_rounded,
+                        keyboardType: TextInputType.number,
+                      ),
+                      const SizedBox(height: 12),
+                      _InputField(
+                        controller: batasAsapDaruratController,
+                        label: 'Batas Asap Darurat',
+                        icon: Icons.warning_amber_rounded,
+                        keyboardType: TextInputType.number,
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  _SectionCard(
+                    title: 'Buzzer',
+                    children: [
+                      SwitchListTile(
+                        value: buzzerAktif,
+                        onChanged: (value) {
+                          setState(() {
+                            buzzerAktif = value;
+                          });
+                        },
+                        title: const Text('Aktifkan Buzzer'),
+                        subtitle: const Text(
+                          'Buzzer akan berbunyi saat kondisi WASPADA atau DARURAT.',
                         ),
-                      ],
+                        secondary: Icon(
+                          buzzerAktif
+                              ? Icons.volume_up_rounded
+                              : Icons.volume_off_rounded,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  _SectionCard(
+                    title: 'Tampilan',
+                    children: [
+                      RadioListTile<ThemeMode>(
+                        value: ThemeMode.system,
+                        groupValue: selectedThemeMode,
+                        onChanged: (value) {
+                          if (value != null) _changeTheme(value);
+                        },
+                        title: const Text('Ikuti Sistem'),
+                      ),
+                      RadioListTile<ThemeMode>(
+                        value: ThemeMode.light,
+                        groupValue: selectedThemeMode,
+                        onChanged: (value) {
+                          if (value != null) _changeTheme(value);
+                        },
+                        title: const Text('Mode Light'),
+                      ),
+                      RadioListTile<ThemeMode>(
+                        value: ThemeMode.dark,
+                        groupValue: selectedThemeMode,
+                        onChanged: (value) {
+                          if (value != null) _changeTheme(value);
+                        },
+                        title: const Text('Mode Dark'),
+                      ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 22),
+
+                  SizedBox(
+                    height: 54,
+                    child: ElevatedButton.icon(
+                      onPressed: isSaving ? null : _saveSettings,
+                      icon: isSaving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.save_rounded),
+                      label: Text(
+                        isSaving ? 'Menyimpan...' : 'Simpan Pengaturan',
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryRed,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(18),
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 18),
+      ),
+    );
+  }
+}
 
-            buildInputCard(
-              label: 'Nama Perangkat',
-              controller: deviceNameController,
-            ),
+class _SectionCard extends StatelessWidget {
+  final String title;
+  final List<Widget> children;
 
-            buildSwitchCard(
-              title: 'WiFi',
-              value: wifi,
-              onChanged: (v) => setState(() => wifi = v),
-            ),
-            buildSwitchCard(
-              title: 'Notifikasi',
-              value: notif,
-              onChanged: (v) => setState(() => notif = v),
-            ),
-            buildSwitchCard(
-              title: 'Suara Alarm',
-              value: sound,
-              onChanged: (v) => setState(() => sound = v),
-            ),
-            buildSwitchCard(
-              title: 'Getar',
-              value: vibrate,
-              onChanged: (v) => setState(() => vibrate = v),
-            ),
-            buildSwitchCard(
-              title: 'Dark Mode',
-              value: darkMode,
-              onChanged: (v) {
-                setState(() => darkMode = v);
-                ThemeController.toggleTheme(v);
-              },
-            ),
+  const _SectionCard({
+    required this.title,
+    required this.children,
+  });
 
-            buildInputCard(
-              label: 'Batas Suhu',
-              controller: tempLimitController,
-              suffixText: '°C',
-              keyboardType: TextInputType.number,
-            ),
-            buildInputCard(
-              label: 'Batas Asap',
-              controller: smokeLimitController,
-              suffixText: 'ppm',
-              keyboardType: TextInputType.number,
-            ),
+  @override
+  Widget build(BuildContext context) {
+    final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
-            const SizedBox(height: 8),
+    final Color textColor =
+        isDark ? const Color(0xFFF9FAFB) : AppTheme.darkText;
 
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: saveSettings,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppTheme.primaryRed,
-                  foregroundColor: Colors.white,
-                  elevation: 0,
-                  padding: const EdgeInsets.symmetric(vertical: 18),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                ),
-                child: const Text(
-                  'Simpan Pengaturan',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
-                ),
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              title,
+              style: TextStyle(
+                color: textColor,
+                fontSize: 17,
+                fontWeight: FontWeight.w800,
               ),
             ),
+            const SizedBox(height: 14),
+            ...children,
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InputField extends StatelessWidget {
+  final TextEditingController controller;
+  final String label;
+  final IconData icon;
+  final TextInputType keyboardType;
+
+  const _InputField({
+    required this.controller,
+    required this.label,
+    required this.icon,
+    required this.keyboardType,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      keyboardType: keyboardType,
+      decoration: InputDecoration(
+        prefixIcon: Icon(icon),
+        labelText: label,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
         ),
       ),
     );

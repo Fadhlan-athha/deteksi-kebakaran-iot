@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "248476231134",
+    "firebase_url": "https://deteksi-kebakaran-iot-default-rtdb.asia-southeast1.firebasedatabase.app",
+    "project_id": "deteksi-kebakaran-iot",
+    "storage_bucket": "deteksi-kebakaran-iot.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:248476231134:android:7102f77310f5c2d7fbe94f",
+        "android_client_info": {
+          "package_name": "com.example.fire_detection_iot"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDDyX1uW3OBlGYDy5dc25U7Oma3edQZFOU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
