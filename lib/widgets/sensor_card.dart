@@ -20,8 +20,9 @@ class SensorCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final Color textColor =
-        isDark ? const Color(0xFFF9FAFB) : const Color(0xFF111827);
+    final Color textColor = isDark
+        ? const Color(0xFFF9FAFB)
+        : const Color(0xFF111827);
 
     final Color subTextColor = isDark ? Colors.white70 : Colors.grey;
 
@@ -31,24 +32,17 @@ class SensorCard extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(18),
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 16,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
           child: Row(
             children: [
               Container(
                 width: 52,
                 height: 52,
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.12),
+                  color: iconColor.withValues(alpha: 0.12),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
-                  icon,
-                  color: iconColor,
-                  size: 28,
-                ),
+                child: Icon(icon, color: iconColor, size: 28),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -57,10 +51,7 @@ class SensorCard extends StatelessWidget {
                   children: [
                     Text(
                       title,
-                      style: TextStyle(
-                        color: subTextColor,
-                        fontSize: 14,
-                      ),
+                      style: TextStyle(color: subTextColor, fontSize: 14),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -77,10 +68,7 @@ class SensorCard extends StatelessWidget {
                 ),
               ),
               if (onTap != null)
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: subTextColor,
-                ),
+                Icon(Icons.chevron_right_rounded, color: subTextColor),
             ],
           ),
         ),

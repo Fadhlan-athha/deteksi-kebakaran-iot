@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationService {
@@ -120,36 +119,54 @@ class NotificationService {
   }
 
   static Future<void> requestNotificationPermission() async {
-    await FirebaseMessaging.instance.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    try {
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    } catch (e) {
+      debugPrint('Gagal meminta permission FCM: $e');
+    }
 
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.requestNotificationsPermission();
+    try {
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+            AndroidFlutterLocalNotificationsPlugin
+          >()
+          ?.requestNotificationsPermission();
+    } catch (e) {
+      debugPrint('Gagal meminta permission notifikasi Android: $e');
+    }
 
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-          IOSFlutterLocalNotificationsPlugin
-        >()
-        ?.requestPermissions(alert: true, badge: true, sound: true);
+    try {
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+            IOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+    } catch (e) {
+      debugPrint('Gagal meminta permission notifikasi iOS: $e');
+    }
 
-    await _plugin
-        .resolvePlatformSpecificImplementation<
-          MacOSFlutterLocalNotificationsPlugin
-        >()
-        ?.requestPermissions(alert: true, badge: true, sound: true);
+    try {
+      await _plugin
+          .resolvePlatformSpecificImplementation<
+            MacOSFlutterLocalNotificationsPlugin
+          >()
+          ?.requestPermissions(alert: true, badge: true, sound: true);
+    } catch (e) {
+      debugPrint('Gagal meminta permission notifikasi macOS: $e');
+    }
   }
 
   static Future<void> subscribeToAlertTopic() async {
     await FirebaseMessaging.instance.subscribeToTopic(alertTopic);
   }
 
-  static Future<void> configureFcmHandlers() async {
+  static Future<void> configureFcmHandlers({
+    Future<void> Function(RemoteMessage message)? onNotificationOpened,
+  }) async {
     if (_fcmHandlersConfigured) {
       return;
     }
@@ -164,13 +181,17 @@ class NotificationService {
         );
 
     FirebaseMessaging.onMessage.listen(handleFcmMessage);
-    FirebaseMessaging.onMessageOpenedApp.listen(handleFcmMessageOpenedApp);
+    FirebaseMessaging.onMessageOpenedApp.listen((message) async {
+      await handleFcmMessageOpenedApp(message);
+      await onNotificationOpened?.call(message);
+    });
 
     final RemoteMessage? initialMessage = await FirebaseMessaging.instance
         .getInitialMessage();
 
     if (initialMessage != null) {
       await handleFcmMessageOpenedApp(initialMessage);
+      await onNotificationOpened?.call(initialMessage);
     }
   }
 

@@ -17,10 +17,10 @@ class AlarmService {
   String? _activeVibrationCondition;
   bool _disposed = false;
 
-  Future<void> handleCondition(String kondisi) async {
+  Future<void> handleCondition(String kondisi, {bool force = false}) async {
     final String normalizedCondition = _normalizeCondition(kondisi);
 
-    if (_lastCondition == normalizedCondition) {
+    if (!force && _lastCondition == normalizedCondition) {
       return;
     }
 
@@ -28,9 +28,15 @@ class AlarmService {
 
     try {
       if (normalizedCondition == _conditionWaspada) {
+        if (force) {
+          await _prepareForcedRestart();
+        }
         await playWaspadaAlarm();
         await startWaspadaVibrationLoop();
       } else if (normalizedCondition == _conditionDarurat) {
+        if (force) {
+          await _prepareForcedRestart();
+        }
         await playDaruratAlarm();
         await startDaruratVibrationLoop();
       } else {
@@ -150,6 +156,12 @@ class AlarmService {
       _lastCondition = null;
     }
 
+    stopVibration();
+    _activeAudioCondition = null;
+    await _audioPlayer.stop();
+  }
+
+  Future<void> _prepareForcedRestart() async {
     stopVibration();
     _activeAudioCondition = null;
     await _audioPlayer.stop();

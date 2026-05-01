@@ -12,8 +12,9 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  final DatabaseReference _historyRef =
-      FirebaseDatabase.instance.ref('history/device_1');
+  final DatabaseReference _historyRef = FirebaseDatabase.instance.ref(
+    'history/device_1',
+  );
 
   List<Map<String, dynamic>> historyList = [];
   bool isLoading = true;
@@ -25,54 +26,61 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   void _listenHistory() {
-    _historyRef.limitToLast(30).onValue.listen(
-      (event) {
-        final data = event.snapshot.value;
+    _historyRef
+        .limitToLast(30)
+        .onValue
+        .listen(
+          (event) {
+            final data = event.snapshot.value;
 
-        if (data != null && data is Map) {
-          final List<Map<String, dynamic>> tempList = [];
+            if (data != null && data is Map) {
+              final List<Map<String, dynamic>> tempList = [];
 
-          data.forEach((key, value) {
-            if (value is Map) {
-              tempList.add({
-                'id': key,
-                'suhu':
-                    double.tryParse(value['suhu']?.toString() ?? '0') ?? 0.0,
-                'kelembapan':
-                    double.tryParse(value['kelembapan']?.toString() ?? '0') ??
+              data.forEach((key, value) {
+                if (value is Map) {
+                  tempList.add({
+                    'id': key,
+                    'suhu':
+                        double.tryParse(value['suhu']?.toString() ?? '0') ??
                         0.0,
-                'asap': int.tryParse(value['asap']?.toString() ?? '0') ?? 0,
-                'api': value['api'] == true,
-                'buzzer': value['buzzer'] == true,
-                'kondisi': value['kondisi']?.toString() ?? 'AMAN',
-                'timestamp':
-                    int.tryParse(value['timestamp']?.toString() ?? '0') ?? 0,
+                    'kelembapan':
+                        double.tryParse(
+                          value['kelembapan']?.toString() ?? '0',
+                        ) ??
+                        0.0,
+                    'asap': int.tryParse(value['asap']?.toString() ?? '0') ?? 0,
+                    'api': value['api'] == true,
+                    'buzzer': value['buzzer'] == true,
+                    'kondisi': value['kondisi']?.toString() ?? 'AMAN',
+                    'timestamp':
+                        int.tryParse(value['timestamp']?.toString() ?? '0') ??
+                        0,
+                  });
+                }
+              });
+
+              tempList.sort((a, b) {
+                return (b['timestamp'] as int).compareTo(a['timestamp'] as int);
+              });
+
+              setState(() {
+                historyList = tempList;
+                isLoading = false;
+              });
+            } else {
+              setState(() {
+                historyList = [];
+                isLoading = false;
               });
             }
-          });
-
-          tempList.sort((a, b) {
-            return (b['timestamp'] as int).compareTo(a['timestamp'] as int);
-          });
-
-          setState(() {
-            historyList = tempList;
-            isLoading = false;
-          });
-        } else {
-          setState(() {
-            historyList = [];
-            isLoading = false;
-          });
-        }
-      },
-      onError: (error) {
-        setState(() {
-          historyList = [];
-          isLoading = false;
-        });
-      },
-    );
+          },
+          onError: (error) {
+            setState(() {
+              historyList = [];
+              isLoading = false;
+            });
+          },
+        );
   }
 
   Color _getStatusColor(String status) {
@@ -119,11 +127,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
     await _historyRef.remove();
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('History berhasil dihapus'),
-        ),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('History berhasil dihapus')));
     }
   }
 
@@ -162,11 +168,13 @@ class _HistoryScreenState extends State<HistoryScreen> {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final Color pageBg =
-        isDark ? const Color(0xFF0F172A) : const Color(0xFFF6F7FB);
+    final Color pageBg = isDark
+        ? const Color(0xFF0F172A)
+        : const Color(0xFFF6F7FB);
 
-    final Color textColor =
-        isDark ? const Color(0xFFF9FAFB) : AppTheme.darkText;
+    final Color textColor = isDark
+        ? const Color(0xFFF9FAFB)
+        : AppTheme.darkText;
 
     final Color subTextColor = isDark ? Colors.white70 : AppTheme.greyText;
 
@@ -205,8 +213,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
                         ),
                       ),
                       IconButton(
-                        onPressed:
-                            historyList.isEmpty ? null : _showClearConfirmation,
+                        onPressed: historyList.isEmpty
+                            ? null
+                            : _showClearConfirmation,
                         icon: const Icon(Icons.delete_rounded),
                         color: AppTheme.primaryRed,
                       ),
@@ -242,10 +251,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                           Text(
                             'Data akan muncul setelah ESP32 mengirim riwayat ke Firebase.',
                             textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: subTextColor,
-                              fontSize: 14,
-                            ),
+                            style: TextStyle(color: subTextColor, fontSize: 14),
                           ),
                         ],
                       ),
@@ -266,7 +272,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                                 width: 52,
                                 height: 52,
                                 decoration: BoxDecoration(
-                                  color: statusColor.withOpacity(0.12),
+                                  color: statusColor.withValues(alpha: 0.12),
                                   shape: BoxShape.circle,
                                 ),
                                 child: Icon(

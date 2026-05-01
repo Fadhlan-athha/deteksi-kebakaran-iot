@@ -12,8 +12,9 @@ class AlarmScreen extends StatefulWidget {
 }
 
 class _AlarmScreenState extends State<AlarmScreen> {
-  final DatabaseReference _databaseRef =
-      FirebaseDatabase.instance.ref('monitoring/device_1');
+  final DatabaseReference _databaseRef = FirebaseDatabase.instance.ref(
+    'monitoring/device_1',
+  );
 
   double temperature = 0.0;
   int smokeValue = 0;
@@ -33,8 +34,7 @@ class _AlarmScreenState extends State<AlarmScreen> {
 
       if (data != null && data is Map) {
         setState(() {
-          temperature =
-              double.tryParse(data['suhu']?.toString() ?? '0') ?? 0.0;
+          temperature = double.tryParse(data['suhu']?.toString() ?? '0') ?? 0.0;
           smokeValue = int.tryParse(data['asap']?.toString() ?? '0') ?? 0;
           fireDetected = data['api'] == true;
           status = data['kondisi']?.toString() ?? 'AMAN';
@@ -88,10 +88,12 @@ class _AlarmScreenState extends State<AlarmScreen> {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color pageBg =
-        isDark ? const Color(0xFF0F172A) : const Color(0xFFF6F7FB);
-    final Color textColor =
-        isDark ? const Color(0xFFF9FAFB) : AppTheme.darkText;
+    final Color pageBg = isDark
+        ? const Color(0xFF0F172A)
+        : const Color(0xFFF6F7FB);
+    final Color textColor = isDark
+        ? const Color(0xFFF9FAFB)
+        : AppTheme.darkText;
     final Color subTextColor = isDark ? Colors.white70 : AppTheme.greyText;
     final Color alarmColor = _getAlarmColor();
 
@@ -115,10 +117,7 @@ class _AlarmScreenState extends State<AlarmScreen> {
                   const SizedBox(height: 6),
                   Text(
                     'Status peringatan dari sistem deteksi kebakaran',
-                    style: TextStyle(
-                      color: subTextColor,
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: subTextColor, fontSize: 14),
                   ),
                   const SizedBox(height: 20),
                   Container(
@@ -128,7 +127,7 @@ class _AlarmScreenState extends State<AlarmScreen> {
                       borderRadius: BorderRadius.circular(28),
                       boxShadow: [
                         BoxShadow(
-                          color: alarmColor.withOpacity(0.28),
+                          color: alarmColor.withValues(alpha: 0.28),
                           blurRadius: 22,
                           offset: const Offset(0, 10),
                         ),
@@ -136,11 +135,7 @@ class _AlarmScreenState extends State<AlarmScreen> {
                     ),
                     child: Column(
                       children: [
-                        Icon(
-                          _getAlarmIcon(),
-                          color: Colors.white,
-                          size: 78,
-                        ),
+                        Icon(_getAlarmIcon(), color: Colors.white, size: 78),
                         const SizedBox(height: 18),
                         Text(
                           status,
@@ -205,21 +200,19 @@ class _InfoTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
-    final Color textColor =
-        isDark ? const Color(0xFFF9FAFB) : AppTheme.darkText;
+    final Color textColor = isDark
+        ? const Color(0xFFF9FAFB)
+        : AppTheme.darkText;
     final Color subTextColor = isDark ? Colors.white70 : AppTheme.greyText;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
       child: ListTile(
         leading: CircleAvatar(
-          backgroundColor: color.withOpacity(0.12),
+          backgroundColor: color.withValues(alpha: 0.12),
           child: Icon(icon, color: color),
         ),
-        title: Text(
-          title,
-          style: TextStyle(color: subTextColor),
-        ),
+        title: Text(title, style: TextStyle(color: subTextColor)),
         trailing: Text(
           value,
           style: TextStyle(

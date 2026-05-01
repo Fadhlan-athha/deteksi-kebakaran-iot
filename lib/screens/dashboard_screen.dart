@@ -7,8 +7,6 @@ import '../theme/app_theme.dart';
 import '../widgets/sensor_card.dart';
 import '../widgets/bottom_nav.dart';
 import '../services/alert_service.dart';
-import '../services/alarm_service.dart';
-import '../services/notification_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -21,7 +19,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final DatabaseReference _databaseRef = FirebaseDatabase.instance.ref(
     'monitoring/device_1',
   );
-  final AlarmService _alarmService = AlarmService();
 
   StreamSubscription<DatabaseEvent>? _databaseSubscription;
   Timer? _onlineStatusTimer;
@@ -88,9 +85,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             status: newStatus,
             mounted: mounted,
           );
-
-          unawaited(NotificationService.handleCondition(newStatus));
-          unawaited(_alarmService.handleCondition(newStatus));
         } else {
           setState(() {
             isLoading = false;
@@ -100,9 +94,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             lcdLine1 = '-';
             lcdLine2 = 'Tidak ada data';
           });
-
-          unawaited(NotificationService.handleCondition('AMAN'));
-          unawaited(_alarmService.handleCondition('AMAN'));
         }
       },
       onError: (error) {
@@ -118,9 +109,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           lcdLine1 = '-';
           lcdLine2 = 'Gagal membaca data';
         });
-
-        unawaited(NotificationService.handleCondition('AMAN'));
-        unawaited(_alarmService.handleCondition('AMAN'));
       },
     );
   }
@@ -188,7 +176,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void dispose() {
     _onlineStatusTimer?.cancel();
     unawaited(_databaseSubscription?.cancel());
-    unawaited(_alarmService.dispose());
     super.dispose();
   }
 

@@ -13,11 +13,11 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final DatabaseReference _settingsRef =
-      FirebaseDatabase.instance.ref('settings/device_1');
+  final DatabaseReference _settingsRef = FirebaseDatabase.instance.ref(
+    'settings/device_1',
+  );
 
-  final TextEditingController namaPerangkatController =
-      TextEditingController();
+  final TextEditingController namaPerangkatController = TextEditingController();
 
   final TextEditingController batasSuhuWaspadaController =
       TextEditingController();
@@ -128,9 +128,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       if (showMessage) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pengaturan berhasil disimpan'),
-          ),
+          const SnackBar(content: Text('Pengaturan berhasil disimpan')),
         );
       }
     }
@@ -148,11 +146,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final Color pageBg =
-        isDark ? const Color(0xFF0F172A) : const Color(0xFFF6F7FB);
+    final Color pageBg = isDark
+        ? const Color(0xFF0F172A)
+        : const Color(0xFFF6F7FB);
 
-    final Color textColor =
-        isDark ? const Color(0xFFF9FAFB) : AppTheme.darkText;
+    final Color textColor = isDark
+        ? const Color(0xFFF9FAFB)
+        : AppTheme.darkText;
 
     final Color subTextColor = isDark ? Colors.white70 : AppTheme.greyText;
 
@@ -176,10 +176,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   const SizedBox(height: 6),
                   Text(
                     'Atur perangkat, batas sensor, LCD, dan buzzer',
-                    style: TextStyle(
-                      color: subTextColor,
-                      fontSize: 14,
-                    ),
+                    style: TextStyle(color: subTextColor, fontSize: 14),
                   ),
                   const SizedBox(height: 20),
 
@@ -267,29 +264,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   _SectionCard(
                     title: 'Tampilan',
                     children: [
-                      RadioListTile<ThemeMode>(
-                        value: ThemeMode.system,
+                      RadioGroup<ThemeMode>(
                         groupValue: selectedThemeMode,
                         onChanged: (value) {
                           if (value != null) _changeTheme(value);
                         },
-                        title: const Text('Ikuti Sistem'),
-                      ),
-                      RadioListTile<ThemeMode>(
-                        value: ThemeMode.light,
-                        groupValue: selectedThemeMode,
-                        onChanged: (value) {
-                          if (value != null) _changeTheme(value);
-                        },
-                        title: const Text('Mode Light'),
-                      ),
-                      RadioListTile<ThemeMode>(
-                        value: ThemeMode.dark,
-                        groupValue: selectedThemeMode,
-                        onChanged: (value) {
-                          if (value != null) _changeTheme(value);
-                        },
-                        title: const Text('Mode Dark'),
+                        child: const Column(
+                          children: [
+                            RadioListTile<ThemeMode>(
+                              value: ThemeMode.system,
+                              title: Text('Ikuti Sistem'),
+                            ),
+                            RadioListTile<ThemeMode>(
+                              value: ThemeMode.light,
+                              title: Text('Mode Light'),
+                            ),
+                            RadioListTile<ThemeMode>(
+                              value: ThemeMode.dark,
+                              title: Text('Mode Dark'),
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
@@ -337,17 +332,15 @@ class _SectionCard extends StatelessWidget {
   final String title;
   final List<Widget> children;
 
-  const _SectionCard({
-    required this.title,
-    required this.children,
-  });
+  const _SectionCard({required this.title, required this.children});
 
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final Color textColor =
-        isDark ? const Color(0xFFF9FAFB) : AppTheme.darkText;
+    final Color textColor = isDark
+        ? const Color(0xFFF9FAFB)
+        : AppTheme.darkText;
 
     return Card(
       margin: EdgeInsets.zero,
@@ -394,9 +387,7 @@ class _InputField extends StatelessWidget {
       decoration: InputDecoration(
         prefixIcon: Icon(icon),
         labelText: label,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(16)),
       ),
     );
   }
