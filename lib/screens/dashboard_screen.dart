@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 
@@ -5,6 +7,8 @@ import '../theme/app_theme.dart';
 import '../widgets/sensor_card.dart';
 import '../widgets/bottom_nav.dart';
 import '../services/alert_service.dart';
+import '../services/alarm_service.dart';
+import '../services/notification_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -14,12 +18,18 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final DatabaseReference _databaseRef =
-      FirebaseDatabase.instance.ref('monitoring/device_1');
+  final DatabaseReference _databaseRef = FirebaseDatabase.instance.ref(
+    'monitoring/device_1',
+  );
+  final AlarmService _alarmService = AlarmService();
+
+  StreamSubscription<DatabaseEvent>? _databaseSubscription;
+  Timer? _onlineStatusTimer;
 
   double temperature = 0.0;
   double humidity = 0.0;
   int smokeValue = 0;
+  int? lastUpdate;
 
   bool fireDetected = false;
   bool buzzerOn = false;
@@ -34,16 +44,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _startOnlineStatusTimer();
     _listenFirebaseData();
   }
 
   void _listenFirebaseData() {
-    _databaseRef.onValue.listen(
-      (event) async {
+    _databaseSubscription = _databaseRef.onValue.listen(
+      (event) {
         final data = event.snapshot.value;
 
+        if (!mounted) {
+          return;
+        }
+
         if (data != null && data is Map) {
-          final String newStatus = data['kondisi']?.toString() ?? 'AMAN';
+          final String newStatus = _parseCondition(data['kondisi']);
+          final int? newLastUpdate = _parseLastUpdate(data['lastUpdate']);
 
           setState(() {
             temperature =
@@ -62,35 +78,118 @@ class _DashboardScreenState extends State<DashboardScreen> {
             lcdLine1 = data['lcdLine1']?.toString() ?? '-';
             lcdLine2 = data['lcdLine2']?.toString() ?? '-';
 
+            lastUpdate = newLastUpdate;
             isLoading = false;
-            isOnline = true;
+            isOnline = isDeviceOnline(newLastUpdate);
           });
 
-          await AlertService.handleStatusAlert(
+          AlertService.handleStatusAlert(
             context: context,
             status: newStatus,
             mounted: mounted,
           );
+
+          unawaited(NotificationService.handleCondition(newStatus));
+          unawaited(_alarmService.handleCondition(newStatus));
         } else {
           setState(() {
             isLoading = false;
             isOnline = false;
+            lastUpdate = null;
             status = 'OFFLINE';
             lcdLine1 = '-';
             lcdLine2 = 'Tidak ada data';
           });
+
+          unawaited(NotificationService.handleCondition('AMAN'));
+          unawaited(_alarmService.handleCondition('AMAN'));
         }
       },
       onError: (error) {
+        if (!mounted) {
+          return;
+        }
+
         setState(() {
           isLoading = false;
           isOnline = false;
+          lastUpdate = null;
           status = 'OFFLINE';
           lcdLine1 = '-';
           lcdLine2 = 'Gagal membaca data';
         });
+
+        unawaited(NotificationService.handleCondition('AMAN'));
+        unawaited(_alarmService.handleCondition('AMAN'));
       },
     );
+  }
+
+  void _startOnlineStatusTimer() {
+    _onlineStatusTimer?.cancel();
+    _onlineStatusTimer = Timer.periodic(
+      const Duration(seconds: 5),
+      (_) => _refreshDeviceOnlineStatus(),
+    );
+  }
+
+  void _refreshDeviceOnlineStatus() {
+    final bool newIsOnline = isDeviceOnline(lastUpdate);
+
+    if (!mounted || newIsOnline == isOnline) {
+      return;
+    }
+
+    setState(() {
+      isOnline = newIsOnline;
+    });
+  }
+
+  bool isDeviceOnline(int? lastUpdate) {
+    if (lastUpdate == null || lastUpdate <= 0) {
+      return false;
+    }
+
+    final int now = DateTime.now().millisecondsSinceEpoch;
+    final int diff = now - lastUpdate;
+
+    return diff <= 15000;
+  }
+
+  int? _parseLastUpdate(dynamic value) {
+    if (value == null) {
+      return null;
+    }
+
+    if (value is int) {
+      return value;
+    }
+
+    if (value is num) {
+      return value.toInt();
+    }
+
+    return int.tryParse(value.toString().trim());
+  }
+
+  String _parseCondition(dynamic value) {
+    final String condition = value?.toString().trim().toUpperCase() ?? '';
+
+    if (condition == 'WASPADA' ||
+        condition == 'DARURAT' ||
+        condition == 'AMAN') {
+      return condition;
+    }
+
+    return 'AMAN';
+  }
+
+  @override
+  void dispose() {
+    _onlineStatusTimer?.cancel();
+    unawaited(_databaseSubscription?.cancel());
+    unawaited(_alarmService.dispose());
+    super.dispose();
   }
 
   Color _getStatusColor() {
@@ -131,9 +230,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   String _getSmokeStatus() {
     if (smokeValue >= 3500) {
-      return 'Tinggi';
+      return 'Darurat';
     } else if (smokeValue >= 2500) {
-      return 'Meningkat';
+      return 'Waspada';
     } else {
       return 'Normal';
     }
@@ -163,23 +262,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
     return fireDetected ? 'Terdeteksi' : 'Tidak Terdeteksi';
   }
 
-  String _getBuzzerStatusText() {
-    return buzzerOn ? 'Menyala' : 'Mati';
-  }
-
   @override
   Widget build(BuildContext context) {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     final Color statusColor = _getStatusColor();
 
-    final Color textColor =
-        isDark ? const Color(0xFFF9FAFB) : AppTheme.darkText;
+    final Color textColor = isDark
+        ? const Color(0xFFF9FAFB)
+        : AppTheme.darkText;
 
-    final Color subTextColor = isDark ? Colors.white70 : AppTheme.greyText;
+    final Color pageBg = isDark
+        ? const Color(0xFF0F172A)
+        : const Color(0xFFF6F7FB);
 
-    final Color pageBg =
-        isDark ? const Color(0xFF0F172A) : const Color(0xFFF6F7FB);
+    final Color deviceBadgeColor = isOnline
+        ? AppTheme.green
+        : (isDark ? const Color(0xFF64748B) : AppTheme.primaryRed);
 
     return Scaffold(
       backgroundColor: pageBg,
@@ -202,7 +301,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 boxShadow: [
                   BoxShadow(
                     color: (isDark ? Colors.black : AppTheme.primaryRed)
-                        .withOpacity(0.18),
+                        .withValues(alpha: 0.18),
                     blurRadius: 24,
                     offset: const Offset(0, 10),
                   ),
@@ -226,7 +325,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         Text(
                           'Sistem Deteksi Dini Kebakaran',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.88),
+                            color: Colors.white.withValues(alpha: 0.88),
                             fontSize: 13,
                           ),
                         ),
@@ -239,8 +338,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       vertical: 8,
                     ),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.16),
+                      color: deviceBadgeColor.withValues(
+                        alpha: isDark ? 0.30 : 0.26,
+                      ),
                       borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: deviceBadgeColor.withValues(alpha: 0.72),
+                      ),
                     ),
                     child: Row(
                       children: [
@@ -274,7 +378,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
-                    statusColor.withOpacity(isDark ? 0.88 : 0.72),
+                    statusColor.withValues(alpha: isDark ? 0.88 : 0.72),
                     statusColor,
                   ],
                   begin: Alignment.topLeft,
@@ -283,7 +387,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 borderRadius: BorderRadius.circular(26),
                 boxShadow: [
                   BoxShadow(
-                    color: statusColor.withOpacity(0.24),
+                    color: statusColor.withValues(alpha: 0.24),
                     blurRadius: 22,
                     offset: const Offset(0, 8),
                   ),
@@ -304,9 +408,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                               SizedBox(height: 12),
-                              CircularProgressIndicator(
-                                color: Colors.white,
-                              ),
+                              CircularProgressIndicator(color: Colors.white),
                             ],
                           )
                         : Column(
@@ -346,7 +448,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     width: 62,
                     height: 62,
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
+                      color: Colors.white.withValues(alpha: 0.18),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(
@@ -390,98 +492,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
 
             SensorCard(
-              icon: Icons.volume_up_rounded,
-              title: 'Status Buzzer',
-              value: _getBuzzerStatusText(),
-              iconColor: buzzerOn ? AppTheme.primaryRed : Colors.grey,
-            ),
-
-            SensorCard(
-              icon: Icons.display_settings_rounded,
-              title: 'LCD I2C',
-              value: '$lcdLine1 | $lcdLine2',
-              iconColor: Colors.indigo,
-            ),
-
-            SensorCard(
               icon: Icons.water_drop_rounded,
               title: 'Kelembapan',
               value: '${humidity.toStringAsFixed(1)}%',
               iconColor: Colors.blue,
             ),
 
-            Card(
-              margin: const EdgeInsets.only(bottom: 14),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 52,
-                      height: 52,
-                      decoration: BoxDecoration(
-                        color: _getTemperatureColor().withOpacity(0.12),
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        Icons.thermostat_rounded,
-                        color: _getTemperatureColor(),
-                        size: 28,
-                      ),
-                    ),
-                    const SizedBox(width: 14),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Suhu',
-                            style: TextStyle(
-                              color: subTextColor,
-                              fontSize: 14,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${temperature.toStringAsFixed(1)}°C',
-                            style: TextStyle(
-                              color: textColor,
-                              fontSize: 22,
-                              fontWeight: FontWeight.w800,
-                            ),
-                          ),
-                          const SizedBox(height: 10),
-                          ClipRRect(
-                            borderRadius: BorderRadius.circular(20),
-                            child: LinearProgressIndicator(
-                              value: (temperature / 50).clamp(0.0, 1.0),
-                              minHeight: 9,
-                              color: _getTemperatureColor(),
-                              backgroundColor: isDark
-                                  ? Colors.white.withOpacity(0.08)
-                                  : Colors.grey.shade200,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 8),
-
-            Text(
-              'Catatan: getar dan popup aktif saat status berubah menjadi WASPADA atau DARURAT.',
-              style: TextStyle(
-                color: subTextColor,
-                fontSize: 12,
-                height: 1.4,
-              ),
+            SensorCard(
+              icon: Icons.thermostat_rounded,
+              title: 'Suhu',
+              value: '${temperature.toStringAsFixed(1)}\u00B0C',
+              iconColor: _getTemperatureColor(),
             ),
           ],
         ),

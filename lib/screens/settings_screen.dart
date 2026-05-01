@@ -192,14 +192,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         icon: Icons.devices_rounded,
                         keyboardType: TextInputType.text,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Nama perangkat ini akan tampil pada LCD I2C.',
-                        style: TextStyle(
-                          color: subTextColor,
-                          fontSize: 12,
-                        ),
-                      ),
                     ],
                   ),
 

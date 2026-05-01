@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:vibration/vibration.dart';
 
 class AlertService {
   static String _lastStatus = 'AMAN';
@@ -7,15 +6,16 @@ class AlertService {
 
   static Future<void> init() async {
     // Untuk sementara kosong.
-    // Getar dan popup tidak butuh initialization khusus.
+    // Popup tidak butuh initialization khusus.
+    // Alarm suara dan getar kontinu ditangani oleh AlarmService.
     // Notifikasi saat app tertutup akan ditangani oleh FCM + Cloud Function.
   }
 
-  static Future<void> handleStatusAlert({
+  static void handleStatusAlert({
     required BuildContext context,
     required String status,
     required bool mounted,
-  }) async {
+  }) {
     if (status == _lastStatus) {
       return;
     }
@@ -23,8 +23,6 @@ class AlertService {
     _lastStatus = status;
 
     if (status == 'WASPADA') {
-      await vibrateWaspada();
-
       if (mounted) {
         showPopup(
           context: context,
@@ -35,8 +33,6 @@ class AlertService {
         );
       }
     } else if (status == 'DARURAT') {
-      await vibrateDarurat();
-
       if (mounted) {
         showPopup(
           context: context,
@@ -46,26 +42,6 @@ class AlertService {
           icon: Icons.warning_rounded,
         );
       }
-    }
-  }
-
-  static Future<void> vibrateWaspada() async {
-    final bool canVibrate = await Vibration.hasVibrator() ?? false;
-
-    if (canVibrate) {
-      Vibration.vibrate(
-        pattern: [0, 250, 150, 250],
-      );
-    }
-  }
-
-  static Future<void> vibrateDarurat() async {
-    final bool canVibrate = await Vibration.hasVibrator() ?? false;
-
-    if (canVibrate) {
-      Vibration.vibrate(
-        pattern: [0, 700, 200, 700, 200, 700],
-      );
     }
   }
 
@@ -87,23 +63,13 @@ class AlertService {
       barrierDismissible: true,
       builder: (context) {
         return AlertDialog(
-          icon: Icon(
-            icon,
-            color: color,
-            size: 48,
-          ),
+          icon: Icon(icon, color: color, size: 48),
           title: Text(
             title,
             textAlign: TextAlign.center,
-            style: TextStyle(
-              color: color,
-              fontWeight: FontWeight.w900,
-            ),
+            style: TextStyle(color: color, fontWeight: FontWeight.w900),
           ),
-          content: Text(
-            message,
-            textAlign: TextAlign.center,
-          ),
+          content: Text(message, textAlign: TextAlign.center),
           actions: [
             TextButton(
               onPressed: () {

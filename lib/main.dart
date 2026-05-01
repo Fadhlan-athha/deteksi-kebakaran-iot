@@ -1,3 +1,5 @@
+import 'dart:ui';
+
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
@@ -10,12 +12,15 @@ import 'screens/history_screen.dart';
 import 'screens/settings_screen.dart';
 import 'theme/app_theme.dart';
 import 'services/alert_service.dart';
+import 'services/notification_service.dart';
 
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  DartPluginRegistrant.ensureInitialized();
+
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  await NotificationService.handleFcmMessage(message);
 
   debugPrint('Background message: ${message.messageId}');
 }
@@ -25,12 +30,8 @@ Future<void> saveFcmToken() async {
     final FirebaseMessaging messaging = FirebaseMessaging.instance;
 
     await messaging.setAutoInitEnabled(true);
-
-    await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    await NotificationService.requestNotificationPermission();
+    await NotificationService.subscribeToAlertTopic();
 
     // Ini untuk mengecek apakah aplikasi bisa menulis ke Firebase.
     await FirebaseDatabase.instance.ref('tokens/device_1').update({
@@ -88,13 +89,12 @@ Future<void> saveFcmToken() async {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
   await AlertService.init();
+  await NotificationService.init();
 
   runApp(const MyApp());
 }
@@ -102,15 +102,15 @@ void main() async {
 class MyApp extends StatefulWidget {
   const MyApp({super.key});
 
-  static _MyAppState? of(BuildContext context) {
-    return context.findAncestorStateOfType<_MyAppState>();
+  static MyAppState? of(BuildContext context) {
+    return context.findAncestorStateOfType<MyAppState>();
   }
 
   @override
-  State<MyApp> createState() => _MyAppState();
+  State<MyApp> createState() => MyAppState();
 }
 
-class _MyAppState extends State<MyApp> {
+class MyAppState extends State<MyApp> {
   ThemeMode _themeMode = ThemeMode.system;
 
   void changeTheme(ThemeMode mode) {
@@ -124,20 +124,10 @@ class _MyAppState extends State<MyApp> {
     super.initState();
 
     Future.microtask(() async {
-      await saveFcmToken();
-    });
-
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      debugPrint('Notif foreground: ${message.notification?.title}');
-    });
-
-    FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
-      debugPrint('Notif dibuka: ${message.notification?.title}');
-    });
-
-    FirebaseMessaging.instance.getInitialMessage().then((message) {
-      if (message != null) {
-        debugPrint('App dibuka dari terminated notification');
+      try {
+        await saveFcmToken();
+      } finally {
+        await NotificationService.configureFcmHandlers();
       }
     });
   }
